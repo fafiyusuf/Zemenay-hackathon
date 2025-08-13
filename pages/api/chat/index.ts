@@ -1,6 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { generateText } from "../../../lib/gemini";
+<<<<<<< HEAD
+import { chatDb } from "../../../lib/chatDb";
+=======
 import { getDbClient } from "../../../lib/supabaseClient";
+>>>>>>> da2ea298d9854f32ad5950ea73bf407d6695e00b
 import { withCors } from "../../../utils/corsMiddleware";
 import { handleApiError } from "../../../utils/errorHandler";
 import { qaExamples } from "../../../utils/qaExamples";
@@ -33,13 +37,59 @@ Use bullets for steps and keep code minimal.`;
 }
 
 export default withCors(async function handler(req: NextApiRequest, res: NextApiResponse) {
+<<<<<<< HEAD
+=======
   res.setHeader("Content-Type", "application/json");
+>>>>>>> da2ea298d9854f32ad5950ea73bf407d6695e00b
   if (req.method !== "POST") {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
+<<<<<<< HEAD
+    const { prompt, conversationId, userId } = req.body || {};
+    
+    if (!prompt || typeof prompt !== "string") {
+      return res.status(400).json({ error: "Prompt is required" });
+    }
+
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+
+    // Save user message to database
+    let messageId: string;
+    if (conversationId) {
+      const userMessage = await chatDb.addMessage(conversationId, userId, 'user', prompt);
+      messageId = userMessage.id;
+    }
+
+    // Get conversation history for context
+    let conversationHistory: any[] = [];
+    if (conversationId) {
+      conversationHistory = await chatDb.getConversationHistoryForAI(conversationId, userId);
+    }
+
+    const SYSTEM_PROMPT = buildSystemPrompt();
+    const aiResponse = await generateText(prompt, { 
+      systemInstruction: SYSTEM_PROMPT,
+      conversationHistory: conversationHistory.length > 0 ? conversationHistory : undefined
+    });
+
+    // Save AI response to database
+    if (conversationId) {
+      await chatDb.addMessage(conversationId, userId, 'assistant', aiResponse);
+    }
+
+    return res.status(200).json({ 
+      response: aiResponse,
+      conversationId,
+      messageId
+    });
+  } catch (err) {
+    console.error("/api/chat error:", err);
+=======
     let { conversationId, message, prompt } = req.body || {};
     // Backward compat: original client sent { prompt }
     if (!message && prompt) message = prompt;
@@ -71,6 +121,7 @@ export default withCors(async function handler(req: NextApiRequest, res: NextApi
     // Include both new (message) and legacy (response) fields for compatibility
     return res.status(200).json({ message: inserted, response: inserted.content, conversationId });
   } catch (err) {
+>>>>>>> da2ea298d9854f32ad5950ea73bf407d6695e00b
     handleApiError(res, err);
   }
 });
