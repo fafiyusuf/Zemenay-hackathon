@@ -1,5 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { generateText } from "../../../lib/gemini";
+import { getDbClient } from "../../../lib/supabaseClient";
+import { withCors } from "../../../utils/corsMiddleware";
+import { handleApiError } from "../../../utils/errorHandler";
 import { qaExamples } from "../../../utils/qaExamples";
 
 function buildSystemPrompt() {
@@ -29,24 +32,45 @@ Use bullets for steps and keep code minimal.`;
   return `${base}\n\nHere are examples of tone and format you should follow:\n\n${examples}`;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default withCors(async function handler(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader("Content-Type", "application/json");
-
   if (req.method !== "POST") {
+    res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { prompt } = req.body || {};
-    if (!prompt || typeof prompt !== "string") {
-      return res.status(400).json({ error: "Prompt is required" });
+    let { conversationId, message, prompt } = req.body || {};
+    // Backward compat: original client sent { prompt }
+    if (!message && prompt) message = prompt;
+
+    const db = getDbClient(true);
+    if (!conversationId) {
+      const { data: conv, error: convErr } = await db.from('chat_conversations').insert({}).select('id').single();
+      if (convErr) throw convErr;
+      conversationId = conv.id;
+    }
+    if (typeof conversationId !== 'string') {
+      return res.status(400).json({ error: 'conversationId is required' });
+    }
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'message is required' });
     }
 
+    await db.from('chat_messages').insert({ conversation_id: conversationId, role: 'user', content: message });
+
     const SYSTEM_PROMPT = buildSystemPrompt();
-    const text = await generateText(prompt, { systemInstruction: SYSTEM_PROMPT });
-    return res.status(200).json({ response: text });
+    const aiText = await generateText(message, { systemInstruction: SYSTEM_PROMPT });
+
+    const { data: inserted, error } = await db.from('chat_messages')
+      .insert({ conversation_id: conversationId, role: 'assistant', content: aiText })
+      .select('*')
+      .single();
+    if (error) throw error;
+
+    // Include both new (message) and legacy (response) fields for compatibility
+    return res.status(200).json({ message: inserted, response: inserted.content, conversationId });
   } catch (err) {
-    console.error("/api/chat error:", err);
-    return res.status(500).json({ error: "Failed to get response" });
+    handleApiError(res, err);
   }
-}
+});

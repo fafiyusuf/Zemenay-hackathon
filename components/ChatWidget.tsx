@@ -1,7 +1,7 @@
 "use client";
 
+import { Send, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { X, Send } from "lucide-react";
 
 interface Message {
   id: string;
@@ -36,8 +36,8 @@ export default function ChatWidget() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt })
       });
-      const data = await resp.json();
-      const text = data.response || data.error || "Sorry, something went wrong.";
+  const data = await resp.json();
+  const text = (data.message && data.message.content) || data.response || data.error || "Sorry, something went wrong.";
       const aiMsg: Message = { id: crypto.randomUUID(), role: "assistant", content: text };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {

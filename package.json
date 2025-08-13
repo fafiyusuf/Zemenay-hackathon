@@ -2,11 +2,15 @@
   "name": "saas_template",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+  "lint": "next lint",
+  "test": "tsx tests/chatClient.test.ts"
   },
   "dependencies": {
     "@google-cloud/vertexai": "^1.10.0",
