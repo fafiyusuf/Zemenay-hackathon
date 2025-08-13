@@ -5,7 +5,7 @@ const MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 
 function getGenAI(): GoogleGenerativeAI {
   if (genAI) return genAI;
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error("Missing GEMINI_API_KEY or GOOGLE_API_KEY in environment variables");
   }
