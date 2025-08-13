@@ -34,7 +34,10 @@ export default function ChatWidget() {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt })
+        body: JSON.stringify({ 
+          prompt,
+          userId: "anonymous-user" // Default user ID for demo
+        })
       });
       const data = await resp.json();
       const text = data.response || data.error || "Sorry, something went wrong.";

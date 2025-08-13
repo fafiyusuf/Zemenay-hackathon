@@ -1,5 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { generateText } from "../../../lib/gemini";
+import { chatDb } from "../../../lib/chatDb";
+import { withCors } from "../../../utils/corsMiddleware";
+import { handleApiError } from "../../../utils/errorHandler";
 import { qaExamples } from "../../../utils/qaExamples";
 
 function buildSystemPrompt() {
@@ -29,24 +32,53 @@ Use bullets for steps and keep code minimal.`;
   return `${base}\n\nHere are examples of tone and format you should follow:\n\n${examples}`;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  res.setHeader("Content-Type", "application/json");
-
+export default withCors(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { prompt } = req.body || {};
+    const { prompt, conversationId, userId } = req.body || {};
+    
     if (!prompt || typeof prompt !== "string") {
       return res.status(400).json({ error: "Prompt is required" });
     }
 
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+
+    // Save user message to database
+    let messageId: string;
+    if (conversationId) {
+      const userMessage = await chatDb.addMessage(conversationId, userId, 'user', prompt);
+      messageId = userMessage.id;
+    }
+
+    // Get conversation history for context
+    let conversationHistory: any[] = [];
+    if (conversationId) {
+      conversationHistory = await chatDb.getConversationHistoryForAI(conversationId, userId);
+    }
+
     const SYSTEM_PROMPT = buildSystemPrompt();
-    const text = await generateText(prompt, { systemInstruction: SYSTEM_PROMPT });
-    return res.status(200).json({ response: text });
+    const aiResponse = await generateText(prompt, { 
+      systemInstruction: SYSTEM_PROMPT,
+      conversationHistory: conversationHistory.length > 0 ? conversationHistory : undefined
+    });
+
+    // Save AI response to database
+    if (conversationId) {
+      await chatDb.addMessage(conversationId, userId, 'assistant', aiResponse);
+    }
+
+    return res.status(200).json({ 
+      response: aiResponse,
+      conversationId,
+      messageId
+    });
   } catch (err) {
     console.error("/api/chat error:", err);
-    return res.status(500).json({ error: "Failed to get response" });
+    handleApiError(res, err);
   }
-}
+});
